@@ -1,64 +1,35 @@
-# Sensor Fusion Self-Driving Car Course
+# SFND - Lidar Detection Project
 
-<img src="media/ObstacleDetectionFPS.gif" width="700" height="400" />
+## Build Instruction
 
-### Welcome to the Sensor Fusion course for self-driving cars.
+Please refer to [Install.md](./Install.md)
 
-In this course we will be talking about sensor fusion, whch is the process of taking data from multiple sensors and combining it to give us a better understanding of the world around us. we will mostly be focusing on two sensors, lidar, and radar. By the end we will be fusing the data from these two sensors to track multiple cars on the road, estimating their positions and speed.
+## Codes Explaination
+The main cpp file to run this project is `environment.cpp`.
 
-**Lidar** sensing gives us high resolution data by sending out thousands of laser signals. These lasers bounce off objects, returning to the sensor where we can then determine how far away objects are by timing how long it takes for the signal to return. Also we can tell a little bit about the object that was hit by measuring the intesity of the returned signal. Each laser ray is in the infrared spectrum, and is sent out at many different angles, usually in a 360 degree range. While lidar sensors gives us very high accurate models for the world around us in 3D, they are currently very expensive, upwards of $60,000 for a standard unit.
+In this project, I implemented Plane Segmentation using RANSAC and Euclidean Clustering using PCL library and from scratch (learning material credits go to Udacity Sensor Fusion Nanodegree program).
 
-**Radar** data is typically very sparse and in a limited range, however it can directly tell us how fast an object is moving in a certain direction. This ability makes radars a very pratical sensor for doing things like cruise control where its important to know how fast the car infront of you is traveling. Radar sensors are also very affordable and common now of days in newer cars.
+After the project is built, by default, the `build/environment` file will process the streaming data from `sensors/data/pcd/data_1` with `cityBlockProject()` function. Inside `cityBlockProject()` function, the Plane Segmentation(RANSAC3D) and Euclidean Clustering methods are programmed without using PCL library, and this is the requirement for the project. The self programmed `RANSAC3D` and `euclideanCluster` are in `ProcessPointClouds` class in `processPointClouds.h`. 
 
-**Sensor Fusion** by combing lidar's high resoultion imaging with radar's ability to measure velocity of objects we can get a better understanding of the sorrounding environment than we could using one of the sensors alone.
+#### Explain some main functions in `environment.cpp`:
+
+- `simpleHighway()` implements PCL library for Segmentation and Euclidean Clustering to point cloud in simulation for learning purposes.
+
+- `cityBlock(pcl::visualization::PCLVisualizer::Ptr& viewer)` implements PCL library for Segmentation and Euclidean Clustering to actual point clouds for one sample data in `sensors/data/pcd/data_1`.
+
+- `cityBlock(pcl::visualization::PCLVisualizer::Ptr& viewer)` implements PCL library for Segmentation and Euclidean Clustering to actual point clouds for one sample data in `sensors/data/pcd/data_1`.
+
+- `cityBlock(pcl::visualization::PCLVisualizer::Ptr& viewer, ProcessPointClouds<pcl::PointXYZI>* pointProcessorI, const pcl::PointCloud<pcl::PointXYZI>::Ptr& inputCloud)` implements PCL library for Segmentation and Euclidean Clustering to actual point clouds to stream the entire sample data in `sensors/data/pcd/data_1`.
+
+- `cityBlockProject(pcl::visualization::PCLVisualizer::Ptr& viewer)` implements from scratch Segmentation and Euclidean Clustering to actual point clouds for one sample data in `sensors/data/pcd/data_1`.
+
+- `cityBlockProject(pcl::visualization::PCLVisualizer::Ptr& viewer, ProcessPointClouds<pcl::PointXYZI>* pointProcessorI, const pcl::PointCloud<pcl::PointXYZI>::Ptr& inputCloud)` implements from scratch Segmentation and Euclidean Clustering to actual point clouds to stream the entire sample data in `sensors/data/pcd/data_1`.
+
+#### Some other way to run all function above
+- If youw ant to run any static data without stream, set `streaming` to `false` on line 270 and follow terminal instruction when launch `environment` for your choice of available options.
+
+- If you want to run the streaming data with PCL library using `cityBlock()`, set `streaming` to `true` on line 270 and set `using_pcl` to `true` on line 271 and build.
+
+- If you want to run the streaming data using `cityBlockProject()`, set `streaming` to `true` on line 270 and set `using_pcl` to `false` on line 271 and build.
 
 
-## Installation
-
-### Ubuntu 
-
-```bash
-$> sudo apt install libpcl-dev
-$> cd ~
-$> git clone https://github.com/udacity/SFND_Lidar_Obstacle_Detection.git
-$> cd SFND_Lidar_Obstacle_Detection
-$> mkdir build && cd build
-$> cmake ..
-$> make
-$> ./environment
-```
-
-### Windows 
-
-http://www.pointclouds.org/downloads/windows.html
-
-### MAC
-
-#### Install via Homebrew
-1. install [homebrew](https://brew.sh/)
-2. update homebrew 
-	```bash
-	$> brew update
-	```
-3. add  homebrew science [tap](https://docs.brew.sh/Taps) 
-	```bash
-	$> brew tap brewsci/science
-	```
-4. view pcl install options
-	```bash
-	$> brew options pcl
-	```
-5. install PCL 
-	```bash
-	$> brew install pcl
-	```
-
-#### Prebuilt Binaries via Universal Installer
-http://www.pointclouds.org/downloads/macosx.html  
-NOTE: very old version 
-
-#### Build from Source
-
-[PCL Source Github](https://github.com/PointCloudLibrary/pcl)
-
-[PCL Mac Compilation Docs](http://www.pointclouds.org/documentation/tutorials/compiling_pcl_macosx.php)

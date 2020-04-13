@@ -44,12 +44,17 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr CreateData()
 
 }
 
-pcl::PointCloud<pcl::PointXYZ>::Ptr CreateData3D()
-{
-	ProcessPointClouds<pcl::PointXYZ> pointProcessor;
-	return pointProcessor.loadPcd("../../../sensors/data/pcd/simpleHighway.pcd");
-}
+// pcl::PointCloud<pcl::PointXYZ>::Ptr CreateData3D()
+// {
+// 	ProcessPointClouds<pcl::PointXYZ> pointProcessor;
+// 	return pointProcessor.loadPcd("../../../sensors/data/pcd/simpleHighway.pcd");
+// }
 
+pcl::PointCloud<pcl::PointXYZI>::Ptr CreateData3D()
+{
+	ProcessPointClouds<pcl::PointXYZI> pointProcessor;
+	return pointProcessor.loadPcd("../../../sensors/data/pcd/data_1/0000000000.pcd");
+}
 
 pcl::visualization::PCLVisualizer::Ptr initScene()
 {
@@ -113,7 +118,7 @@ std::unordered_set<int> Ransac(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, int ma
 
 }
 
-std::unordered_set<int> Ransac3D(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, int maxIterations, float distanceTol)
+std::unordered_set<int> Ransac3D(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud, int maxIterations, float distanceTol)
 {
 	std::unordered_set<int> inliersResult;
 	srand(time(NULL));
@@ -180,19 +185,19 @@ int main ()
 
 	// Create data
 	// pcl::PointCloud<pcl::PointXYZ>::Ptr cloud = CreateData();
-	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud = CreateData3D();
+	pcl::PointCloud<pcl::PointXYZI>::Ptr cloud = CreateData3D();
 	
 
 	// TODO: Change the max iteration and distance tolerance arguments for Ransac function
 	// std::unordered_set<int> inliers = Ransac(cloud, 50, 0.5);
 	std::unordered_set<int> inliers = Ransac3D(cloud, 50, 0.5);
 
-	pcl::PointCloud<pcl::PointXYZ>::Ptr  cloudInliers(new pcl::PointCloud<pcl::PointXYZ>());
-	pcl::PointCloud<pcl::PointXYZ>::Ptr cloudOutliers(new pcl::PointCloud<pcl::PointXYZ>());
+	pcl::PointCloud<pcl::PointXYZI>::Ptr  cloudInliers(new pcl::PointCloud<pcl::PointXYZI>());
+	pcl::PointCloud<pcl::PointXYZI>::Ptr cloudOutliers(new pcl::PointCloud<pcl::PointXYZI>());
 
 	for(int index = 0; index < cloud->points.size(); index++)
 	{
-		pcl::PointXYZ point = cloud->points[index];
+		pcl::PointXYZI point = cloud->points[index];
 		if(inliers.count(index))
 			cloudInliers->points.push_back(point);
 		else

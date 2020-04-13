@@ -26,14 +26,37 @@ typename pcl::PointCloud<PointT>::Ptr ProcessPointClouds<PointT>::FilterCloud(ty
 
     // Time segmentation process
     auto startTime = std::chrono::steady_clock::now();
-
+    typename pcl::PointCloud<PointT>::Ptr cloud_downsampled (new pcl::PointCloud<PointT>() );
+    typename pcl::PointCloud<PointT>::Ptr cropCloud (new pcl::PointCloud<PointT>() );
+    typename pcl::PointCloud<PointT>::Ptr cloud_filtered (new pcl::PointCloud<PointT>() );
     // TODO:: Fill in the function to do voxel grid point reduction and region based filtering
+
+    pcl::VoxelGrid<PointT> sor;
+    sor.setInputCloud (cloud);
+    sor.setLeafSize(filterRes, filterRes, filterRes);
+    sor.filter (*cloud_downsampled);
+
+    pcl::CropBox<PointT> removeRoof;
+    removeRoof.setInputCloud(cloud_downsampled);
+    removeRoof.setMin(Eigen::Vector4f(-2.0, -1.5, -2, 1));
+    removeRoof.setMax(Eigen::Vector4f(2.7, 1.5, 0, 1));
+    removeRoof.setNegative(true);
+    removeRoof.filter(*cloud_filtered);
+    
+
+    pcl::CropBox<PointT> cb;
+    cb.setMin(minPoint);
+    cb.setMax(maxPoint);
+    cb.setInputCloud(cloud_filtered);
+    cb.filter(*cropCloud);
+
 
     auto endTime = std::chrono::steady_clock::now();
     auto elapsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
     std::cout << "filtering took " << elapsedTime.count() << " milliseconds" << std::endl;
 
-    return cloud;
+    // return cloud_filtered;
+    return cropCloud;
 
 }
 
@@ -49,7 +72,7 @@ std::pair<typename pcl::PointCloud<PointT>::Ptr, typename pcl::PointCloud<PointT
     extract.setInputCloud(cloud);
     extract.setIndices(inliers);
     extract.setNegative(false);
-    extract.filter(*planeCloud) // non-obscales
+    extract.filter(*planeCloud); // non-obscales
 
     extract.setNegative(true);
     extract.filter(*obstCloud); // obscales
@@ -181,3 +204,126 @@ std::vector<boost::filesystem::path> ProcessPointClouds<PointT>::streamPcd(std::
     return paths;
 
 }
+
+/* PROJECT CODES */
+
+template<typename PointT>
+std::pair<typename pcl::PointCloud<PointT>::Ptr, typename pcl::PointCloud<PointT>::Ptr> ProcessPointClouds<PointT>::RANSAC3D(typename pcl::PointCloud<PointT>::Ptr cloud, int maxIterations, float distanceTol)
+{
+    std::unordered_set<int> inliersResult;
+	srand(time(NULL));
+
+	// For max iterations
+	for (int i=0; i < maxIterations; i++)
+	{
+		// Randomly sample subset and fit line
+		std::unordered_set<int> inliers; // use set to avoid picking same index again
+		while (inliers.size() < 3)
+		{
+			inliers.insert(rand()%(cloud->points.size()));
+		}
+		float x1, y1, z1, x2, y2, z2, x3, y3, z3;
+		auto itr = inliers.begin(); // point to the first pointer of the indices
+		x1 = cloud->points[*itr].x;
+		y1 = cloud->points[*itr].y;
+		z1 = cloud->points[*itr].z;
+		itr++;
+		x2 = cloud->points[*itr].x;
+		y2 = cloud->points[*itr].y;
+		z2 = cloud->points[*itr].z;
+		itr++;
+		x3 = cloud->points[*itr].x;
+		y3 = cloud->points[*itr].y;
+		z3 = cloud->points[*itr].z;
+
+		float a = (y2-y1)*(z3-z1) - (z2-z1)*(y3-y1);
+		float b = (z2-z1)*(x3-x1) - (x2-x1)*(z3-z1);
+		float c = (x2-x1)*(y3-y1) - (y2-y1)*(x3-x1);
+		float d = -(a*x1 + b*y1 + c*z1);
+
+		for (int idx = 0; idx < cloud->points.size(); idx++)
+		{
+			if (inliers.count(idx) > 0) continue; // skip the rest of the loop if idx exists in the set
+			float dist = fabs(a*cloud->points[idx].x + b*cloud->points[idx].y + c*cloud->points[idx].z + d) / sqrt(a*a + b*b + c*c);
+			if (dist <= distanceTol) inliers.insert(idx);
+		}
+		if (inliers.size() > inliersResult.size()) inliersResult = inliers;
+	}
+
+    typename pcl::PointCloud<PointT>::Ptr  cloudInliers(new pcl::PointCloud<PointT>());
+	typename pcl::PointCloud<PointT>::Ptr cloudOutliers(new pcl::PointCloud<PointT>());
+
+	for(int index = 0; index < cloud->points.size(); index++)
+	{
+		PointT point = cloud->points[index];
+		if(inliersResult.count(index))
+			cloudInliers->points.push_back(point);
+		else
+			cloudOutliers->points.push_back(point);
+	}
+	
+    std::pair<typename pcl::PointCloud<PointT>::Ptr, typename pcl::PointCloud<PointT>::Ptr> segResult(cloudOutliers,cloudInliers);
+    return segResult;
+}
+
+template<typename PointT>
+void ProcessPointClouds<PointT>::proximity(const std::vector<std::vector<float>>& points, std::vector<int> &cluster, KdTree* tree, float distanceTol, int i, bool processed[])
+{
+	processed[i] = true;
+	cluster.push_back(i);
+	std::vector<int> nearby = tree->search(points[i], distanceTol);
+	for (auto id: nearby)
+	{
+		if (!processed[id])
+			proximity(points, cluster, tree, distanceTol, id, processed);
+	}
+
+}
+
+template<typename PointT>
+std::vector<typename pcl::PointCloud<PointT>::Ptr> ProcessPointClouds<PointT>::euclideanCluster(typename pcl::PointCloud<PointT>::Ptr cloud, float clusterTolerance, int minSize, int maxSize)
+{
+
+    // Add points to kdtree
+    KdTree* tree = new KdTree;
+    std::vector<std::vector<float>> points;
+    for (int i=0; i< cloud->points.size(); i++)
+    {
+        std::vector<float> p {cloud->points[i].x, cloud->points[i].y};
+        points.push_back(p);
+        tree->insert(p,i);
+    }
+    
+    // Apply euclidean clustering
+    std::vector<std::vector<int>> clusters;
+
+    bool processed[cloud->points.size()] = {false};
+    for (int i=0; i < cloud->points.size(); i++)
+    {
+        if (!processed[i])
+        {
+            std::vector<int> cluster;
+            proximity(points, cluster, tree, clusterTolerance, i, processed);
+            clusters.push_back(cluster);
+        }
+    }
+
+    // Create cluster clouds vector
+    std::vector<typename pcl::PointCloud<PointT>::Ptr> clusterClouds;
+    for (std::vector<int> cluster : clusters)
+    {
+        if (cluster.size() < minSize || cluster.size() > maxSize) continue;
+
+        typename pcl::PointCloud<PointT>::Ptr clusterCloud (new pcl::PointCloud<PointT>() );
+        for (int indice : cluster)
+            clusterCloud->points.push_back(cloud->points[indice]);
+
+        clusterClouds.push_back(clusterCloud);
+    }
+
+    delete tree;
+    return clusterClouds;
+
+}
+
+/* PROJECT CODE END */
